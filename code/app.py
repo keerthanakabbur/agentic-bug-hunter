@@ -219,9 +219,5 @@ def analyze():
 
 
 if __name__ == "__main__":
-    print("\n" + "="*55)
-    print("  Agentic Bug Hunter — Web Interface")
-    print("  Open : http://localhost:5000")
-    print("  Needs: MCP server running on port 8003")
-    print("="*55 + "\n")
-    app.run(debug=False, host="0.0.0.0", port=5000, threaded=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host="0.0.0.0", port=port, threaded=True)
