@@ -2,5 +2,5 @@ services:
   - type: web
     name: agentic-bug-hunter
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements-web.txt
     startCommand: python code/app.py
