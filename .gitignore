@@ -1,0 +1,15 @@
+# Secret keys — NEVER commit these
+.env
+
+# Python virtual environment — huge, no need to push
+winenv/
+venv/
+__pycache__/
+*.pyc
+
+# Storage and model folders — too large for GitHub
+server/storage/
+server/embedding_model/
+
+# Output files
+output.csv

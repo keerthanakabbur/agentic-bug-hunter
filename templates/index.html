@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Bug Hunter</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface2:  #21262d;
+    --border:    #30363d;
+    --accent:    #f78166;
+    --accent2:   #79c0ff;
+    --green:     #56d364;
+    --yellow:    #e3b341;
+    --purple:    #bc8cff;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --red:       #f85149;
+    --radius:    10px;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ────────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .badge {
+    font-size: 11px;
+    background: #1f3b4d;
+    color: var(--accent2);
+    border: 1px solid #2d5a6e;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  /* ── Main layout ────────────────────────────────────── */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    height: calc(100vh - 65px);
+  }
+
+  /* ── Panel ──────────────────────────────────────────── */
+  .panel {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  .panel-left  { border-right: 1px solid var(--border); }
+  .panel-right { background: var(--surface); }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  /* ── Form elements ──────────────────────────────────── */
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 7px;
+  }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 12px 14px;
+    font-size: 13px;
+    transition: border-color 0.15s;
+    resize: vertical;
+    outline: none;
+  }
+
+  textarea:focus, input[type="text"]:focus {
+    border-color: var(--accent2);
+  }
+
+  #code-input {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 280px;
+    tab-size: 4;
+  }
+
+  #context-input {
+    min-height: 70px;
+    font-size: 13px;
+    resize: none;
+  }
+
+  /* ── Button ─────────────────────────────────────────── */
+  .btn-analyze {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn-analyze:hover  { opacity: 0.88; }
+  .btn-analyze:active { transform: scale(0.98); }
+  .btn-analyze:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .spinner {
+    width: 17px; height: 17px;
+    border: 2.5px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Agent pipeline ─────────────────────────────────── */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .agent-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+    transition: border-color 0.2s;
+  }
+
+  .agent-card.active  { border-color: var(--accent2); }
+  .agent-card.done    { border-color: var(--green); }
+  .agent-card.error   { border-color: var(--red); }
+
+  .agent-icon {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+
+  .agent-card.active .agent-icon  { background: #1f3b4d; }
+  .agent-card.done   .agent-icon  { background: #122a1c; }
+
+  .agent-body { flex: 1; min-width: 0; }
+
+  .agent-name {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .agent-msg {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .agent-card.active .agent-msg { color: var(--accent2); }
+  .agent-card.done   .agent-msg { color: var(--green); }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+    margin-top: 13px;
+  }
+
+  .agent-card.active .dot { background: var(--accent2); animation: pulse 1s ease infinite; }
+  .agent-card.done   .dot { background: var(--green); animation: none; }
+  .agent-card.error  .dot { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── Result box ─────────────────────────────────────── */
+  #result-box {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .result-header {
+    background: #1a1e24;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .result-header .bug-badge {
+    background: #3d1515;
+    color: var(--accent);
+    border: 1px solid #6b2020;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* ── Code viewer ────────────────────────────────────── */
+  .code-viewer {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    padding: 0;
+  }
+
+  .code-line {
+    display: flex;
+    padding: 1px 0;
+  }
+
+  .code-line.bug-line {
+    background: rgba(247, 129, 102, 0.12);
+    border-left: 3px solid var(--accent);
+  }
+
+  .code-line:not(.bug-line) {
+    border-left: 3px solid transparent;
+  }
+
+  .line-num {
+    color: var(--muted);
+    user-select: none;
+    padding: 0 12px 0 16px;
+    min-width: 52px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .code-line.bug-line .line-num { color: var(--accent); font-weight: 700; }
+
+  .line-text { padding: 0 16px 0 6px; white-space: pre; }
+
+  /* ── Explanation ────────────────────────────────────── */
+  .explanation-box {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .exp-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 8px;
+  }
+
+  .exp-text {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text);
+  }
+
+  .exp-text .highlight { color: var(--yellow); font-weight: 600; }
+
+  /* ── Empty state ─────────────────────────────────────── */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    text-align: center;
+    padding: 40px;
+  }
+
+  .empty-icon { font-size: 48px; opacity: 0.35; }
+  .empty-title { font-size: 16px; font-weight: 600; }
+  .empty-sub { font-size: 13px; line-height: 1.6; max-width: 280px; }
+
+  /* ── Error box ───────────────────────────────────────── */
+  #error-box {
+    display: none;
+    background: #1c0e0e;
+    border: 1px solid #6b2020;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    color: var(--red);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Responsive ──────────────────────────────────────── */
+  @media (max-width: 820px) {
+    main { grid-template-columns: 1fr; height: auto; }
+    .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🐛 <span>Agentic</span> Bug Hunter</div>
+  <div class="badge">Groq + MCP RAG</div>
+</header>
+
+<main>
+
+  <!-- ── LEFT PANEL: Input ─────────────────────────────── -->
+  <div class="panel panel-left">
+    <div class="panel-title">Input</div>
+
+    <div>
+      <label for="code-input">C++ Code</label>
+      <textarea id="code-input" placeholder="Paste your C++ code here...
+Example:
+rdi.smartVec().vecEditMode(TA::VECD);
+
+RDI_BEGIN();
+rdi.smartVec()
+    .label(&quot;sLabel&quot;).copyLabel(false).pin(A)
+    .writeData(&quot;rt&quot;, 8, 0)
+    .execute();
+RDI_END();"></textarea>
+    </div>
+
+    <div>
+      <label for="context-input">Context <span style="color:var(--muted);font-weight:400">(what this code does)</span></label>
+      <textarea id="context-input" placeholder="E.g.: mode for editing vectors at runtime using smartVec with copyLabel"></textarea>
+    </div>
+
+    <button class="btn-analyze" id="analyze-btn" onclick="runAnalysis()">
+      <span class="spinner" id="spinner"></span>
+      <span id="btn-text">🔍 Detect Bug</span>
+    </button>
+
+    <!-- Agent pipeline cards -->
+    <div class="pipeline" id="pipeline" style="display:none">
+      <div class="panel-title" style="margin-bottom:4px">Agent Pipeline</div>
+
+      <div class="agent-card" id="card-parser">
+        <div class="agent-icon">📝</div>
+        <div class="agent-body">
+          <div class="agent-name">Parser Agent</div>
+          <div class="agent-msg" id="msg-parser">Waiting...</div>
+        </div>
+        <div class="dot"></div>
+      </div>
+
+      <div class="agent-card" id="card-retriever">
+        <div class="agent-icon">🔎</div>
+        <div class="agent-body">
+          <div class="agent-name">Retriever Agent</div>
+          <div class="agent-msg" id="msg-retriever">Waiting...</div>
+        </div>
+        <div class="dot"></div>
+      </div>
+
+      <div class="agent-card" id="card-detector">
+        <div class="agent-icon">🧠</div>
+        <div class="agent-body">
+          <div class="agent-name">Detector Agent</div>
+          <div class="agent-msg" id="msg-detector">Waiting...</div>
+        </div>
+        <div class="dot"></div>
+      </div>
+
+      <div class="agent-card" id="card-explainer">
+        <div class="agent-icon">💬</div>
+        <div class="agent-body">
+          <div class="agent-name">Explainer Agent</div>
+          <div class="agent-msg" id="msg-explainer">Waiting...</div>
+        </div>
+        <div class="dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL: Result ──────────────────────────── -->
+  <div class="panel panel-right">
+    <div class="panel-title">Result</div>
+
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🔍</div>
+      <div class="empty-title">No analysis yet</div>
+      <div class="empty-sub">Paste your C++ code on the left and click Detect Bug to find the issue.</div>
+    </div>
+
+    <div id="error-box"></div>
+
+    <div id="result-box">
+      <div class="result-header">
+        <span>Bug Found</span>
+        <span class="bug-badge" id="bug-line-badge">Line ?</span>
+      </div>
+      <div class="code-viewer" id="code-viewer"></div>
+      <div class="explanation-box">
+        <div class="exp-label">🔎 Explanation</div>
+        <div class="exp-text" id="explanation-text"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  let activeSource = null;
+
+  function setCard(stage, state, msg) {
+    const card = document.getElementById(`card-${stage}`);
+    const msgEl = document.getElementById(`msg-${stage}`);
+    if (!card) return;
+    card.className = `agent-card ${state}`;
+    msgEl.textContent = msg;
+  }
+
+  function resetCards() {
+    ['parser','retriever','detector','explainer'].forEach(s => {
+      setCard(s, '', 'Waiting...');
+    });
+  }
+
+  async function runAnalysis() {
+    const code    = document.getElementById('code-input').value.trim();
+    const context = document.getElementById('context-input').value.trim();
+
+    if (!code) {
+      alert('Please paste some C++ code first.');
+      return;
+    }
+
+    // UI: loading state
+    const btn     = document.getElementById('analyze-btn');
+    const spinner = document.getElementById('spinner');
+    const btnText = document.getElementById('btn-text');
+    btn.disabled      = true;
+    spinner.style.display = 'block';
+    btnText.textContent   = 'Analyzing...';
+
+    // Show pipeline, hide result
+    document.getElementById('pipeline').style.display    = 'flex';
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('result-box').style.display  = 'none';
+    document.getElementById('error-box').style.display   = 'none';
+    resetCards();
+
+    // Close any previous SSE
+    if (activeSource) activeSource.close();
+
+    // POST to /analyze, get SSE stream back
+    const response = await fetch('/analyze', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ code, context }),
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); }
+        catch { continue; }
+
+        if (evt.error) {
+          document.getElementById('error-box').style.display = 'block';
+          document.getElementById('error-box').textContent   = '❌ Error: ' + evt.error;
+          break;
+        }
+
+        if (evt.stage) {
+          const isDone = evt.message.startsWith('✓');
+          setCard(evt.stage, isDone ? 'done' : 'active', evt.message);
+        }
+
+        if (evt.done) {
+          showResult(evt);
+        }
+      }
+    }
+
+    // Restore button
+    btn.disabled           = false;
+    spinner.style.display  = 'none';
+    btnText.textContent    = '🔍 Detect Bug';
+  }
+
+  function showResult(evt) {
+    const bugLine    = evt.bug_line;
+    const codeLines  = evt.numbered_code.split('\n');
+    const explanation = evt.explanation;
+
+    // Badge
+    document.getElementById('bug-line-badge').textContent = `Line ${bugLine}`;
+
+    // Build syntax-highlighted code view
+    const viewer = document.getElementById('code-viewer');
+    viewer.innerHTML = '';
+    codeLines.forEach((rawLine, i) => {
+      const lineNo  = i + 1;
+      const isBug   = lineNo === bugLine;
+
+      // Parse "  N: code" format
+      const match = rawLine.match(/^\s*(\d+): (.*)$/);
+      const num   = match ? match[1] : String(lineNo);
+      const text  = match ? match[2] : rawLine;
+
+      const row = document.createElement('div');
+      row.className = isBug ? 'code-line bug-line' : 'code-line';
+
+      const numEl = document.createElement('span');
+      numEl.className = 'line-num';
+      numEl.textContent = num;
+
+      const textEl = document.createElement('span');
+      textEl.className = 'line-text';
+      textEl.textContent = text;
+
+      if (isBug) {
+        const icon = document.createElement('span');
+        icon.style.cssText = 'color:var(--accent);font-size:11px;padding-left:6px;font-weight:700;';
+        icon.textContent = '← BUG';
+        textEl.appendChild(icon);
+      }
+
+      row.appendChild(numEl);
+      row.appendChild(textEl);
+      viewer.appendChild(row);
+    });
+
+    // Scroll bug line into view
+    setTimeout(() => {
+      const bugRow = viewer.querySelectorAll('.bug-line')[0];
+      if (bugRow) bugRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 100);
+
+    // Explanation
+    document.getElementById('explanation-text').textContent = explanation;
+
+    document.getElementById('result-box').style.display = 'block';
+  }
+
+  // Tab key inserts spaces in the code textarea
+  document.getElementById('code-input').addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = e.target.selectionStart;
+      e.target.value = e.target.value.slice(0, s) + '    ' + e.target.value.slice(e.target.selectionEnd);
+      e.target.selectionStart = e.target.selectionEnd = s + 4;
+    }
+  });
+</script>
+
+</body>
+</html>
